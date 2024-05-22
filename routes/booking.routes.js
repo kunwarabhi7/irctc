@@ -38,41 +38,88 @@ bookingRouter.get('/:userID', (req, res) => {
 
 // booking 
 bookingRouter.post('/', (req, res) => {
-    const { UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, TotalFare, Status, Passengers } = req.body;
+    const { UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, Status, Passengers } = req.body;
 
-    // check all input are filled
-    if (!UserID || !TrainID || !BookingDate || !TravelDate || !SourceStationID || !DestinationStationID || !ClassType || !TotalFare || !Status || !Passengers || Passengers.length === 0) {
-        return res.json({ error: 400, message: 'All required fields must be filled' });
+    // Check all required fields
+    if (!UserID || !TrainID || !BookingDate || !TravelDate || !SourceStationID || !DestinationStationID || !ClassType || !Status || !Passengers || Passengers.length === 0) {
+        return res.status(400).json({ error: 400, message: 'All required fields must be filled' });
     }
 
-    // check for passenger input are filled
-    for (const passenger of Passengers) {
-        if (!passenger.PassengerName || !passenger.Age || !passenger.Gender || !passenger.SeatNumber) {
-            return res.json({error:400,message:"Please fill all passenger data fields"})
-        }
-    }
-
-    const bookingSql = 'INSERT INTO Bookings (UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, TotalFare, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
-
-    db.query(bookingSql, [UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, TotalFare, Status], (err, result) => {
+    // Fetch fare from database
+    const fareSql = 'SELECT Fare FROM TrainFares WHERE TrainID = ? AND SourceStationID = ? AND DestinationStationID = ? AND ClassType = ?';
+    db.query(fareSql, [TrainID, SourceStationID, DestinationStationID, ClassType], (err, fareResult) => {
         if (err) {
-            return res.status(500).send('Database Error');
+            console.error('Database error fetching fare:', err);
+            return res.status(500).json({ error: 500, message: 'Database error fetching fare', details: err.message });
         }
 
-        const BookingID = result.insertId;
+        if (fareResult.length === 0) {
+            return res.status(400).json({ error: 400, message: 'Fare not found' });
+        }
 
-        for (const passenger of Passengers) {
-            const passengerSql = 'INSERT INTO Passengers (BookingID, PassengerName, Age, Gender, SeatNumber) VALUES (?, ?, ?, ?, ?)';
-            db.query(passengerSql, [BookingID, passenger.PassengerName, passenger.Age, passenger.Gender, passenger.SeatNumber], (err) => {
+        const farePerPassenger = fareResult[0].Fare;
+
+        // Fetch available seats from the database
+        const seatSql = 'SELECT AvailableSeats, TotalSeats FROM Seats WHERE TrainID = ? AND ClassType = ?';
+db.query(seatSql, [TrainID, ClassType], (err, seatResult) => {
+    if (err) {
+        console.error('Database error fetching seat numbers:', err);
+        return res.status(500).json({ error: 500, message: 'Database error fetching seat numbers', details: err.message });
+    }
+
+    const availableSeats = seatResult[0].AvailableSeats;
+    const totalSeats = seatResult[0].TotalSeats;
+
+    if (availableSeats < Passengers.length) {
+        return res.status(400).json({ error: 400, message: 'Not enough available seats' });
+    }
+
+            // Insert booking
+            const bookingSql = 'INSERT INTO Bookings (UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, TotalFare, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+    const totalFare = farePerPassenger * Passengers.length;
+    db.query(bookingSql, [UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, totalFare, Status], (err, bookingResult) => {
+        if (err) {
+            console.error('Database error inserting booking:', err);
+            return res.status(500).json({ error: 500, message: 'Database error inserting booking', details: err.message });
+        }
+
+        const BookingID = bookingResult.insertId;
+
+        // Generate seat numbers
+        const startSeatNumber = totalSeats - availableSeats + 1;
+
+        // Insert passengers with assigned seat numbers
+        const passengerSql = 'INSERT INTO Passengers (BookingID, PassengerName, Age, Gender, SeatNumber) VALUES (?, ?, ?, ?, ?)';
+        for (let i = 0; i < Passengers.length; i++) {
+            const passenger = Passengers[i];
+            const seatNumber = startSeatNumber + i;
+            db.query(passengerSql, [BookingID, passenger.PassengerName, passenger.Age, passenger.Gender, seatNumber], (err) => {
                 if (err) {
-                    return res.status(500).send('Database Error');
+                    console.error('Database error inserting passenger:', err);
+                    return res.status(500).json({ error: 500, message: 'Database error inserting passenger', details: err.message });
                 }
             });
         }
 
-        res.json({"success":200,message:'Booking successful'});
+        // Decrease available seats
+        const updateSeatsSql = 'UPDATE Seats SET AvailableSeats = AvailableSeats - ? WHERE TrainID = ? AND ClassType = ?';
+        db.query(updateSeatsSql, [Passengers.length, TrainID, ClassType], (err) => {
+            if (err) {
+                console.error('Database error updating available seats:', err);
+                return res.status(500).json({ error: 500, message: 'Database error updating available seats', details: err.message });
+            }
+
+            res.status(200).json({ success: 200, message: 'Booking successful', BookingID })
+                });
+            });
+        });
     });
 });
+
+
+
+
+
 
 
 
