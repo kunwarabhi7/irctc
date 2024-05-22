@@ -14,8 +14,8 @@ userRouter.get('/', (req, res) => {
 // User Registration
 userRouter.post('/', (req, res) => {
     console.log(req.body);
-    const { UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address } = req.body;
-    // Manual input validation
+    const { UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address,fullName } = req.body;
+    //  input validation
     const errors = [];
     if (!UserName || UserName.length < 3) {
         errors.push('UserName must be at least 3 characters long');
@@ -27,6 +27,7 @@ userRouter.post('/', (req, res) => {
     if (!Email || !emailRegex.test(Email)) {
         errors.push('Email must be valid');
     }
+    if(!fullName) errors.push('Full Name is required');
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
     if (!PhoneNumber || !phoneRegex.test(PhoneNumber)) {
         errors.push('PhoneNumber must be valid');
@@ -46,8 +47,8 @@ userRouter.post('/', (req, res) => {
         return res.status(400).json({ errors });
     }
 
-    const sql = 'INSERT INTO Users (UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address) VALUES (?, ?, ?, ?, ?, ?, ?)';
-    const values = [UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address];
+    const sql = 'INSERT INTO Users (UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address ,fullName) VALUES (?, ?, ?, ?, ?, ?, ?,?)';
+    const values = [UserName, Password, Email, PhoneNumber, DateOfBirth, Gender, Address , fullName];
 
     db.query(sql, values, (err, result) => {
         if (err) {
