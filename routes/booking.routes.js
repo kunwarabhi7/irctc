@@ -37,13 +37,38 @@ bookingRouter.get('/:userID', (req, res) => {
 });
 
 // booking 
-bookingRouter.post('/', (req, res) => {
-    const { UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, Status, Passengers } = req.body;
+
+const getStationID = (city) => {
+    return new Promise((resolve, reject) => {
+        const query = 'SELECT StationID FROM Stations WHERE LOWER(City) = LOWER(?)';
+        db.query(query, [city], (err, result) => {
+            if (err) {
+                console.error('Error retrieving station ID:', err);
+                return reject(err);
+            }
+            if (result.length === 0) {
+                console.error(`Station not found for city: ${city}`);
+                return reject('Station not found');
+            }
+            resolve(result[0].StationID);
+        });
+    });
+};
+
+
+bookingRouter.post('/', async(req, res) => {
+    const { UserID, TrainID, BookingDate, TravelDate, SourceCity, DestinationCity, ClassType, Status, Passengers } = req.body;
 
     // Check all required fields
-    if (!UserID || !TrainID || !BookingDate || !TravelDate || !SourceStationID || !DestinationStationID || !ClassType || !Status || !Passengers || Passengers.length === 0) {
+    if (!UserID || !TrainID || !BookingDate || !TravelDate || !SourceCity || !DestinationCity || !ClassType || !Status || !Passengers || Passengers.length === 0) {
         return res.status(400).json({ error: 400, message: 'All required fields must be filled' });
     }
+
+    const SourceStationID = await getStationID(SourceCity);
+    const DestinationStationID = await getStationID(DestinationCity);
+
+    console.log(`SourceStationID: ${SourceStationID}, DestinationStationID: ${DestinationStationID}`); // Logging for debugging
+
 
     // Fetch fare from database
     const fareSql = 'SELECT Fare FROM TrainFares WHERE TrainID = ? AND SourceStationID = ? AND DestinationStationID = ? AND ClassType = ?';
@@ -59,7 +84,7 @@ bookingRouter.post('/', (req, res) => {
 
         const farePerPassenger = fareResult[0].Fare;
 
-        // Fetch available seats from the database
+        // available seat code
         const seatSql = 'SELECT AvailableSeats, TotalSeats FROM Seats WHERE TrainID = ? AND ClassType = ?';
 db.query(seatSql, [TrainID, ClassType], (err, seatResult) => {
     if (err) {
@@ -74,7 +99,7 @@ db.query(seatSql, [TrainID, ClassType], (err, seatResult) => {
         return res.status(400).json({ error: 400, message: 'Not enough available seats' });
     }
 
-            // Insert booking
+            // Insert booking code
             const bookingSql = 'INSERT INTO Bookings (UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, TotalFare, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
     const totalFare = farePerPassenger * Passengers.length;
     db.query(bookingSql, [UserID, TrainID, BookingDate, TravelDate, SourceStationID, DestinationStationID, ClassType, totalFare, Status], (err, bookingResult) => {
@@ -85,7 +110,7 @@ db.query(seatSql, [TrainID, ClassType], (err, seatResult) => {
 
         const BookingID = bookingResult.insertId;
 
-        // Generate seat numbers
+        // Generate seat numbers 
         const startSeatNumber = totalSeats - availableSeats + 1;
 
         // Insert passengers with assigned seat numbers
