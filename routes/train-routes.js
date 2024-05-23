@@ -35,40 +35,70 @@ trainRouter.get('/:trainID/schedule', (req, res) => {
     });
 });
 
-//search a train
-trainRouter.post('/search', (req, res) => {
-    const { SourceStationID, DestinationStationID, TravelDate, ClassType } = req.body;
+const getStationID = (City) => {
+    return new Promise((resolve, reject) => {
+        const query = 'SELECT StationID FROM Stations WHERE City = ?';
+        db.query(query, [City], (err, result) => {
+            if (err) {
+                console.error('Error retrieving station ID:', err);
+                return reject(err);
+            }
+            if (result.length === 0) {
+                console.error(`Station not found for name: ${City}`);
+                return reject('Station not found');
+            }
+            resolve(result[0].StationID);
+        });
+    });
+};
+// Route to search trains based on station names
+trainRouter.post('/search', async (req, res) => {
+    const { SourceStationName, DestinationStationName, TravelDate, ClassType } = req.body;
 
     // Check if all required fields are provided
-    if (!SourceStationID || !DestinationStationID || !TravelDate || !ClassType) {
+    if (!SourceStationName || !DestinationStationName || !TravelDate || !ClassType) {
         return res.status(400).json({ error: 400, message: 'All required fields must be filled' });
     }
 
-    // Query to find trains that match the search criteria
-    const searchSql = `
-        SELECT t.TrainID, t.TrainName, tf.Fare, s.AvailableSeats
-        FROM Trains t
-        JOIN TrainFares tf ON t.TrainID = tf.TrainID
-        JOIN Seats s ON t.TrainID = s.TrainID AND tf.ClassType = s.ClassType
-        WHERE tf.SourceStationID = ? 
-          AND tf.DestinationStationID = ?
-          AND tf.ClassType = ?
-          AND s.ClassType = ?
-          AND s.AvailableSeats > 0
-    `;
+    try {
+        const SourceStationID = await getStationID(SourceStationName);
+        const DestinationStationID = await getStationID(DestinationStationName);
 
-    db.query(searchSql, [SourceStationID, DestinationStationID, ClassType, ClassType], (err, results) => {
-        if (err) {
-            console.error('Database error fetching trains:', err);
-            return res.status(500).json({ error: 500, message: 'Database error fetching trains', details: err.message });
+        console.log(SourceStationID, DestinationStationID);
+
+        // Query to find trains that match the search criteria
+        const searchSql = `
+            SELECT t.TrainID, t.TrainName, tf.Fare, s.AvailableSeats
+            FROM Trains t
+            JOIN TrainFares tf ON t.TrainID = tf.TrainID
+            JOIN Seats s ON t.TrainID = s.TrainID AND tf.ClassType = s.ClassType
+            WHERE tf.SourceStationID = ? 
+              AND tf.DestinationStationID = ?
+              AND tf.ClassType = ?
+              AND s.ClassType = ?
+              AND s.AvailableSeats > 0
+        `;
+
+        db.query(searchSql, [SourceStationID, DestinationStationID, ClassType, ClassType], (err, results) => {
+            if (err) {
+                console.error('Database error fetching trains:', err);
+                return res.status(500).json({ error: 500, message: 'Database error fetching trains', details: err.message });
+            }
+
+            if (results.length === 0) {
+                return res.status(404).json({ error: 404, message: 'No trains found for the given criteria' });
+            }
+
+            res.status(200).json({ success: 200, trains: results });
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        if (error === 'Station not found') {
+            return res.status(404).json({ error: 404, message: `Station not found: ${error}` });
+        } else {
+            return res.status(500).json({ error: 500, message: 'Server error', details: error });
         }
-
-        if (results.length === 0) {
-            return res.status(404).json({ error: 404, message: 'No trains found for the given criteria' });
-        }
-
-        res.status(200).json({ success: 200, trains: results });
-    });
+    }
 });
 
 
