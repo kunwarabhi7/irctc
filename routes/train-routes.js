@@ -35,36 +35,39 @@ trainRouter.get('/:trainID/schedule', (req, res) => {
     });
 });
 
-const getStationID = (City) => {
+const getStationID = (city) => {
     return new Promise((resolve, reject) => {
-        const query = 'SELECT StationID FROM Stations WHERE City = ?';
-        db.query(query, [City], (err, result) => {
+        const query = 'SELECT StationID FROM Stations WHERE LOWER(City) = LOWER(?)';
+        db.query(query, [city], (err, result) => {
             if (err) {
                 console.error('Error retrieving station ID:', err);
                 return reject(err);
             }
             if (result.length === 0) {
-                console.error(`Station not found for name: ${City}`);
+                console.error(`Station not found for city: ${city}`);
                 return reject('Station not found');
             }
+            console.log(`StationID for ${city}:`, result[0].StationID); // Logging for debugging
             resolve(result[0].StationID);
         });
     });
 };
-// Route to search trains based on station names
+
+
+// Route to search trains based on city names
 trainRouter.post('/search', async (req, res) => {
-    const { SourceStationName, DestinationStationName, TravelDate, ClassType } = req.body;
+    const { SourceCity, DestinationCity, TravelDate, ClassType } = req.body;
 
     // Check if all required fields are provided
-    if (!SourceStationName || !DestinationStationName || !TravelDate || !ClassType) {
+    if (!SourceCity || !DestinationCity || !TravelDate || !ClassType) {
         return res.status(400).json({ error: 400, message: 'All required fields must be filled' });
     }
 
     try {
-        const SourceStationID = await getStationID(SourceStationName);
-        const DestinationStationID = await getStationID(DestinationStationName);
+        const SourceStationID = await getStationID(SourceCity);
+        const DestinationStationID = await getStationID(DestinationCity);
 
-        console.log(SourceStationID, DestinationStationID);
+        console.log(`SourceStationID: ${SourceStationID}, DestinationStationID: ${DestinationStationID}`); // Logging for debugging
 
         // Query to find trains that match the search criteria
         const searchSql = `
@@ -77,6 +80,7 @@ trainRouter.post('/search', async (req, res) => {
               AND tf.ClassType = ?
               AND s.ClassType = ?
               AND s.AvailableSeats > 0
+              AND t.TrainID = tf.TrainID
         `;
 
         db.query(searchSql, [SourceStationID, DestinationStationID, ClassType, ClassType], (err, results) => {
@@ -86,9 +90,10 @@ trainRouter.post('/search', async (req, res) => {
             }
 
             if (results.length === 0) {
-                return res.status(404).json({ error: 404, message: 'No trains found for the given criteria' });
+                return res.status(404).json({ error: 404, message: 'No trains found on this route' });
             }
 
+            console.log('Train search results:', results); 
             res.status(200).json({ success: 200, trains: results });
         });
     } catch (error) {
@@ -100,7 +105,6 @@ trainRouter.post('/search', async (req, res) => {
         }
     }
 });
-
 
 
 trainRouter.get('/:trainID/fares', (req, res) => {
