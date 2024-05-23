@@ -82,7 +82,7 @@ userRouter.post('/login', (req, res) => {
 
 
         if (result.length > 0) {
-            return res.status(200).json({ message: 'Login successful' });
+            return res.status(200).json({UserID:result[0].UserID, message: 'Login successful' });
         } else {
             return res.status(401).json({ error: 'Username or password is incorrect' });
         }
