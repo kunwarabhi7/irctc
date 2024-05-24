@@ -47,43 +47,47 @@ const getStationID = (city) => {
                 console.error(`Station not found for city: ${city}`);
                 return reject('Station not found');
             }
-            console.log(`StationID for ${city}:`, result[0].StationID); // Logging for debugging
+            console.log(`StationID for ${city}:`, result[0].StationID); 
             resolve(result[0].StationID);
         });
     });
 };
 
 
-// Route to search trains based on city names
+// Train route Search
 trainRouter.post('/search', async (req, res) => {
     const { SourceCity, DestinationCity, TravelDate, ClassType } = req.body;
 
-    // Check if all required fields are provided
-    if (!SourceCity || !DestinationCity || !TravelDate || !ClassType) {
-        return res.status(400).json({ error: 400, message: 'All required fields must be filled' });
+    // Check if all required fields are filled
+    if (!SourceCity || !DestinationCity || !TravelDate) {
+        return res.status(400).json({ error: 400, message: 'SourceCity, DestinationCity, and TravelDate are required' });
     }
 
     try {
         const SourceStationID = await getStationID(SourceCity);
         const DestinationStationID = await getStationID(DestinationCity);
 
-        console.log(`SourceStationID: ${SourceStationID}, DestinationStationID: ${DestinationStationID}`); // Logging for debugging
+        console.log(`SourceStationID: ${SourceStationID}, DestinationStationID: ${DestinationStationID}`); 
 
-        // Query to find trains that match the search criteria
-        const searchSql = `
-            SELECT t.TrainID, t.TrainName, tf.Fare, s.AvailableSeats
+        let searchSql = `
+            SELECT t.TrainID, t.TrainName, tf.Fare, s.AvailableSeats, tf.ClassType
             FROM Trains t
             JOIN TrainFares tf ON t.TrainID = tf.TrainID
             JOIN Seats s ON t.TrainID = s.TrainID AND tf.ClassType = s.ClassType
             WHERE tf.SourceStationID = ? 
               AND tf.DestinationStationID = ?
-              AND tf.ClassType = ?
-              AND s.ClassType = ?
               AND s.AvailableSeats > 0
               AND t.TrainID = tf.TrainID
         `;
 
-        db.query(searchSql, [SourceStationID, DestinationStationID, ClassType, ClassType], (err, results) => {
+        let queryParams = [SourceStationID, DestinationStationID];
+
+        if (ClassType) {
+            searchSql += ` AND tf.ClassType = ? AND s.ClassType = ?`;
+            queryParams.push(ClassType, ClassType);
+        }
+
+        db.query(searchSql, queryParams, (err, results) => {
             if (err) {
                 console.error('Database error fetching trains:', err);
                 return res.status(500).json({ error: 500, message: 'Database error fetching trains', details: err.message });
@@ -99,12 +103,13 @@ trainRouter.post('/search', async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         if (error === 'Station not found') {
-            return res.status(404).json({ error: 404, message: `Station not found: ${error}` });
+            return res.status(404).json({ error: 404, message: 'That Station is not found. Please enter a valid city name.' });
         } else {
             return res.status(500).json({ error: 500, message: 'Server error', details: error });
         }
     }
 });
+
 
 
 trainRouter.get('/:trainID/fares', (req, res) => {
