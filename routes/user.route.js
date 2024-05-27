@@ -136,7 +136,7 @@ console.log(email);
                     service: 'gmail',
                     auth: {
                         user: 'abhishek@credenc.com',
-            pass: 'hnab jlcw zrlk iies'
+            pass: 'password'
                     }
                 });
 
@@ -205,7 +205,7 @@ userRouter.post('/send-email', (req, res) => {
         service: 'gmail',
         auth: {
             user: 'abhishek@credenc.com',
-            pass: 'hnab jlcw zrlk iies'
+            pass: 'password'
         }
     });
 
