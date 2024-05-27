@@ -1,5 +1,7 @@
 import { Router } from "express";
 import db from "../utils/db.js";
+import nodemailer from 'nodemailer'
+import crypto from 'crypto'
 
 const userRouter = Router();
 
@@ -85,6 +87,145 @@ userRouter.post('/login', (req, res) => {
             return res.status(200).json({UserID:result[0].UserID, message: 'Login successful' });
         } else {
             return res.status(401).json({ error: 'Username or password is incorrect' });
+        }
+    });
+});
+
+
+  
+  
+// forgot password
+userRouter.post('/forgotpassword', (req, res) => {
+    const { email } = req.body;
+console.log(email);
+    // Check if email is provided
+    if (!email) {
+        return res.status(400).json({ error: 'Please enter an email' });
+    }
+
+
+    db.query('SELECT * FROM Users WHERE Email = ?', [email], (err, results) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Database error', details: err.message });
+        }
+
+        // If no user with the provided email is found
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const user = results[0];
+
+        // Generate a secure token
+        const resetToken = crypto.randomBytes(20).toString('hex');
+
+        // Calculate token expiration time (1 hour from now)
+        const resetTokenExpires = new Date();
+        resetTokenExpires.setHours(resetTokenExpires.getHours() + 1);
+
+        // Update the database with the reset token and its expiration time
+        db.query('UPDATE Users SET ResetToken = ?, ResetTokenExpires = ? WHERE UserID = ?', 
+            [resetToken, resetTokenExpires, user.UserID], (err) => {
+                if (err) {
+                    console.error('Database error:', err);
+                    return res.status(500).json({ error: 'Database error', details: err.message });
+                }
+
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: 'abhishek@credenc.com',
+            pass: 'hnab jlcw zrlk iies'
+                    }
+                });
+
+                const mailOptions = {
+                    from: 'abhishek@gmail.com',
+                    to: user.Email,
+                    subject: 'Password Reset',
+                    text: `You have requested a password reset. Please click on the following link to reset your password: http://localhost:3001/users/resetpassword?token=${resetToken}`,
+                    };
+
+                transporter.sendMail(mailOptions, (error, info) => {
+                    if (error) {
+                        console.error('Error sending email:', error);
+                        return res.status(500).json({ error: 'Failed to send email', details: error.message });
+                    }
+                    console.log('Email sent:', info.response);
+                    res.status(200).json({ message: 'Password reset email sent successfully' });
+                });
+            });
+    });
+});
+
+// Reset Password 
+userRouter.post('/resetpassword', (req, res) => {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+        return res.status(400).json({ error: 'Token and newPassword are required' });
+    }
+
+    db.query('SELECT * FROM Users WHERE ResetToken = ? AND ResetTokenExpires > NOW()', [token], (err, results) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Database error', details: err.message });
+        }
+
+        if (results.length === 0) {
+            return res.status(400).json({ error: 'Invalid or expired token' });
+        }
+
+        const user = results[0];
+
+        db.query('UPDATE Users SET Password = ?, ResetToken = NULL, ResetTokenExpires = NULL WHERE UserID = ?', 
+            [newPassword, user.UserID], (err) => {
+                if (err) {
+                    console.error('Database error:', err);
+                    return res.status(500).json({ error: 'Database error', details: err.message });
+                }
+
+                res.status(200).json({ message: 'Password reset successfully' });
+            });
+    });
+});
+
+
+userRouter.post('/send-email', (req, res) => {
+    const { to, subject, text, html } = req.body;
+
+    // Validate email fields
+    if (!to || !subject || (!text && !html)) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Create transporter object
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: 'abhishek@credenc.com',
+            pass: 'hnab jlcw zrlk iies'
+        }
+    });
+
+    // Construct email options
+    const mailOptions = {
+        from: 'abhishek@credenc.com',
+        to: to,
+        subject: subject,
+        text: text,
+        html: html
+    };
+
+    // Send email
+    transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+            console.error('Error sending email:', error);
+            res.status(500).json({ error: 'Failed to send email', details: error.message });
+        } else {
+            console.log('Email sent:', info.response);
+            res.status(200).json({ message: 'Email sent successfully' });
         }
     });
 });
