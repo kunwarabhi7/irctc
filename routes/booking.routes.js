@@ -1,9 +1,10 @@
 import { Router } from "express";
 import db from "../utils/db.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const bookingRouter = Router();
 
-bookingRouter.get('/',(req,res)=>{
+bookingRouter.get('/',authMiddleware, (req,res)=>{
 db.query("select * from Bookings", (err,data)=>{
     if(err) throw err;
     res.json({status:200 , data})
@@ -11,8 +12,7 @@ db.query("select * from Bookings", (err,data)=>{
 } )
 
 
-bookingRouter.get('/:userID', (req, res) => {
-
+bookingRouter.get('/:userID',authMiddleware, (req, res) => {
     const userID = parseInt(req.params.userID, 10);
 
     if (isNaN(userID) || userID <= 0) {
@@ -56,7 +56,7 @@ const getStationID = (city) => {
 };
 
 
-bookingRouter.post('/', async(req, res) => {
+bookingRouter.post('/',authMiddleware,  async(req, res) => {
     const { UserID, TrainID, BookingDate, TravelDate, SourceCity, DestinationCity, ClassType, Status, Passengers } = req.body;
 
     // Check all required fields
