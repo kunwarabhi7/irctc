@@ -2,11 +2,14 @@ import { Router } from "express";
 import db from "../utils/db.js";
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
-
+import validator from 'email-validator'
 const userRouter = Router();
+import jwt from 'jsonwebtoken'
+import { authMiddleware } from "../middleware/auth.middleware.js";
 
+const secret = "mysecretkey";
 
-userRouter.get('/', (req, res) => {
+userRouter.get('/',authMiddleware, (req, res) => {
     db.query('SELECT * FROM Users', (err, result) => {
         if (err) throw err;
         res.send(result);
@@ -64,7 +67,7 @@ userRouter.post('/', (req, res) => {
 
 // User Login
 
-userRouter.post('/login', (req, res) => {
+userRouter.post('/login',(req, res) => {
     console.log('Request Body:', req.body);
 
     const { UserName, Password } = req.body;
@@ -84,7 +87,8 @@ userRouter.post('/login', (req, res) => {
 
 
         if (result.length > 0) {
-            return res.status(200).json({UserID:result[0].UserID, message: 'Login successful' });
+            const token = jwt.sign({ UserID: result[0].UserID }, secret, { expiresIn: '1h' });
+            return res.status(200).json({UserID:result[0].UserID, message: 'Login successful' , token});
         } else {
             return res.status(401).json({ error: 'Username or password is incorrect' });
         }
@@ -101,6 +105,22 @@ console.log(email);
     // Check if email is provided
     if (!email) {
         return res.status(400).json({ error: 'Please enter an email' });
+    }
+    const parts = email.split('@');
+    console.log(parts);
+    if (parts[0].length < 4 || parts?.[1].length < 4 || !parts[0] || !parts[1]) {
+        return res.status(400).json({ error: 'Email must contain a username and a domain name' });
+    }
+    
+    
+
+    const isValid = validator.validate(email);
+
+    if (!isValid) {
+        return res.status(400).json({ error: 'Please enter a valid email' });
+    }
+    if (email.includes('test')) {
+        return res.status(400).json({ error: 'Email cannot contain the word "test"' });
     }
 
 
@@ -136,7 +156,7 @@ console.log(email);
                     service: 'gmail',
                     auth: {
                         user: 'abhishek@credenc.com',
-            pass: 'password'
+            pass: 'hnab jlcw zrlk iies'
                     }
                 });
 
@@ -205,7 +225,7 @@ userRouter.post('/send-email', (req, res) => {
         service: 'gmail',
         auth: {
             user: 'abhishek@credenc.com',
-            pass: 'password'
+            pass: 'hnab jlcw zrlk iies'
         }
     });
 
