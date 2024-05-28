@@ -1,9 +1,10 @@
 import { Router } from "express";
 import db from "../utils/db.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const trainRouter = Router();
 
-trainRouter.get('/', (req, res) => {
+trainRouter.get('/',authMiddleware, (req, res) => {
     const sql = 'SELECT * FROM Trains';
     db.query(sql, (err, result) => {
         if (err) throw err;
@@ -11,7 +12,7 @@ trainRouter.get('/', (req, res) => {
     });
 });
 
-trainRouter.get('/:trainID/schedule', (req, res) => {
+trainRouter.get('/:trainID/schedule',authMiddleware, (req, res) => {
     const trainID = parseInt(req.params.trainID, 10);
 
     if (isNaN(trainID) || trainID <= 0) {
@@ -55,7 +56,7 @@ const getStationID = (city) => {
 
 
 // Train route Search
-trainRouter.post('/search', async (req, res) => {
+trainRouter.post('/search',authMiddleware, async (req, res) => {
     const { SourceCity, DestinationCity, TravelDate, ClassType } = req.body;
 
     // Check if all required fields are filled
@@ -112,7 +113,7 @@ trainRouter.post('/search', async (req, res) => {
 
 
 
-trainRouter.get('/:trainID/fares', (req, res) => {
+trainRouter.get('/:trainID/fares',authMiddleware, (req, res) => {
     const trainID = parseInt(req.params.trainID, 10);
 
     if (isNaN(trainID) || trainID <= 0) {
