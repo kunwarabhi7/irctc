@@ -1,16 +1,17 @@
 import { Router } from "express";
 import db from "../utils/db.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const passengerRouter = Router();
 
-passengerRouter.get("/",(req,res)=>{
+passengerRouter.get("/",authMiddleware,(req,res)=>{
     db.query("select * from Passengers", (err,data)=>{
         if(err) throw err;
         res.json({status:200, data})
     })
 })
 
-passengerRouter.get("/:bookingID", (req, res) => {
+passengerRouter.get("/:bookingID",authMiddleware, (req, res) => {
     const bookingID = parseInt(req.params.bookingID, 10);
 
     // Validate bookingID
