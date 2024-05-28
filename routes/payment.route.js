@@ -1,16 +1,17 @@
 import { Router } from "express";
 import db from "../utils/db.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const paymentRoute = Router();
 
-paymentRoute.get("/",(req,res)=>{
+paymentRoute.get("/",authMiddleware,(req,res)=>{
 db.query("SELECT * FROM Payments",(err,data)=>{
     if(err) throw err;
     res.json({status:200, data})
 });
 })
 
-paymentRoute.post('/', (req, res) => {
+paymentRoute.post('/',authMiddleware, (req, res) => {
     const { BookingID, PaymentMethod } = req.body;
 
     if (!BookingID || !PaymentMethod) {
